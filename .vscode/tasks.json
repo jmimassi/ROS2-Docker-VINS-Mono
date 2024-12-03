@@ -1,0 +1,45 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Feature Tracker",
+            "type": "shell",
+            "command": "source /opt/ros/foxy/setup.bash && source /workspaces/ROS2-Docker-VINS-Mono/ros2_ws/install/local_setup.bash && ros2 launch feature_tracker vins_feature_tracker.launch.py",
+            "group": "build",
+            "presentation": {
+                "panel": "new",
+                "group": "vins"
+            }
+        },
+        {
+            "label": "VINS Estimator",
+            "type": "shell",
+            "command": "source /opt/ros/foxy/setup.bash && source /workspaces/ROS2-Docker-VINS-Mono/ros2_ws/install/local_setup.bash && ros2 launch vins_estimator euroc.launch.py",
+            "group": "build",
+            "presentation": {
+                "panel": "new",
+                "group": "vins"
+            }
+        },
+        {
+            "label": "Benchmark Publisher",
+            "type": "shell",
+            "command": "source /opt/ros/foxy/setup.bash && source /workspaces/ROS2-Docker-VINS-Mono/ros2_ws/install/local_setup.bash && ros2 launch benchmark_publisher benchmark_publisher.launch.py",
+            "group": "build",
+            "presentation": {
+                "panel": "new",
+                "group": "vins"
+            }
+        },
+        {
+            "label": "ROS Bag Play",
+            "type": "shell",
+            "command": "source /opt/ros/foxy/setup.bash && source /workspaces/ROS2-Docker-VINS-Mono/ros2_ws/install/local_setup.bash && ros2 bag play MH_01_easy",
+            "group": "build",
+            "presentation": {
+                "panel": "new",
+                "group": "vins"
+            }
+        }
+    ]
+}

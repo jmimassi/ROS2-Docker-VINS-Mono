@@ -90,4 +90,6 @@ RUN echo "/usr/local/lib" >> /etc/ld.so.conf.d/opencv.conf && \
 
 RUN echo "source /opt/ros/foxy/setup.bash" >> /root/.bashrc
 
-WORKDIR /workspace
+RUN pip install rosbags
+
+WORKDIR /workspaces/ROS2-DOCKER-VINS-MONO
