@@ -42,6 +42,52 @@ RUN cd /tmp && \
     make install && \
     rm -rf /tmp/ceres-solver-1.14.0*
 
+# Installation des dépendances pour OpenCV 4.2.0
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    libgtk2.0-dev \
+    pkg-config \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    python-dev \
+    python-numpy \
+    libtbb2 \
+    libtbb-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libtiff-dev \
+    libdc1394-22-dev \
+    libv4l-dev \
+    liblapacke-dev \
+    libxvidcore-dev \
+    libx264-dev \
+    libatlas-base-dev \
+    gfortran \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Installation d'OpenCV 4.2.0
+RUN cd /tmp && \
+    git clone https://github.com/opencv/opencv.git && \
+    cd opencv && \
+    git checkout 4.2.0 && \
+    mkdir build && \
+    cd build && \
+    cmake -D CMAKE_BUILD_TYPE=Release \
+    -D CMAKE_INSTALL_PREFIX=/usr/local .. && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/opencv
+
+# Configuration des chemins pour OpenCV
+RUN echo "/usr/local/lib" >> /etc/ld.so.conf.d/opencv.conf && \
+    ldconfig && \
+    echo "export PKG_CONFIG_PATH=\$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig" >> /root/.bashrc
+
+
 RUN echo "source /opt/ros/foxy/setup.bash" >> /root/.bashrc
 
 WORKDIR /workspace
