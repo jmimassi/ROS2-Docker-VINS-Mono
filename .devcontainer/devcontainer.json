@@ -4,6 +4,7 @@
 		"context": "..",
 		"dockerfile": "../Dockerfile"
 	},
+	"privileged": true,
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -15,6 +16,19 @@
 				"njpwerner.autodocstring"
 			]
 		}
+	},
+	"runArgs": [
+		"--net=host",
+		"-e",
+		"DISPLAY=${env:DISPLAY}"
+	],
+	"mounts": [
+		"source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
+		"source=/dev/dri,target=/dev/dri,type=bind,consistency=cached"
+	],
+	"containerEnv": {
+		"DISPLAY": "unix:0",
+		"QT_X11_NO_MITSHM": "1"
 	},
 	"postCreateCommand": "/bin/bash -c 'cd ros2_ws && source /opt/ros/foxy/setup.bash && colcon build --parallel-workers 1'"
 }
