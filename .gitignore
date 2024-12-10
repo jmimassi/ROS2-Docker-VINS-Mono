@@ -3,3 +3,4 @@ ros2_ws/install
 ros2_ws/log
 MH_01_easy.bag
 MH_01_easy/
+ros2_ws/src/VINS-MONO-ROS2/benchmark_publisher/config/*
