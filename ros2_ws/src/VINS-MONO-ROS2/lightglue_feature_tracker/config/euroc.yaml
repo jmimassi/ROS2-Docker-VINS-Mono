@@ -3,7 +3,7 @@
 cam_name: cam_rgb
 cam_id: 0
 topic_images: /cam0/image_raw
-topic_features: /lgft_features
+topic_features: /feature_tracker/feature
 
 # additions for deep feature tracker
 mr_scale: 1

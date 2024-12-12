@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
-from lightglue import LightGlue, SuperPoint, DISK
-from lightglue.utils import load_image, rbd, numpy_image_to_torch
-from lightglue import viz2d
-
+import sys
+print(sys.path)
+from lightglue_feature_tracker.lightglue import LightGlue, SuperPoint, DISK
+from lightglue_feature_tracker.lightglue.utils import load_image, rbd, numpy_image_to_torch
+from lightglue_feature_tracker.lightglue import viz2d
 import sys
 import yaml
 import rclpy
@@ -18,19 +19,18 @@ import time
 from multiprocessing import Lock
 from multiprocessing.pool import Pool
 from multiprocessing import Manager
+from rclpy.node import Node
 
-class feature_tracker:
-
+class FeatureTracker(Node):
     def __init__(self):
-        rclpy.init()
-        self.node = rclpy.create_node('feature_tracker')
-
-        # load config
-        cfg_path = self.node.get_parameter("/lgft/cam_config_file")
+        # Assurez-vous d'appeler le constructeur de la classe parente correctement
+        super().__init__('feature_tracker_node') 
+        # self.node = rclpy.create_node('feature_tracker_node')
+        self.declare_parameter('cam_config_file')
+        cfg_path = self.get_parameter('cam_config_file').get_parameter_value().string_value
         self.cfg = self.load_camera_config(cfg_path)
         self.K = self.cfg["K"]
         self.dist_coeffs = self.cfg["dist_coeffs"]
-
         # modes
         self.MODE_FILTER_KEYPOINTS = False
         self.MODE_FILTER_MATCHES = False
@@ -38,12 +38,12 @@ class feature_tracker:
         self.MODE_MATCH_MULTIPLE_FRAMES = False
 
         # topics
-        self.image_pub = self.node.create_publisher(Image, "/lg_fm/image", 1000)
-        self.pub_features = self.node.create_publisher(PointCloud, self.cfg["topic_features"], 1000)
+        self.image_pub = self.create_publisher(Image, "/feature_tracker/feature_img", 1000)
+        self.pub_features = self.create_publisher(PointCloud, self.cfg["topic_features"], 1000)
         self.use_compressed_input = False
         if self.use_compressed_input:
-            self.subscriber = self.node.create_subscription(CompressedImage, self.cfg["topic_images"], self.callback, 1000)
-        self.subscriber = self.node.create_subscription(Image, self.cfg["topic_images"], self.callback, 1000)
+            self.subscriber = self.create_subscription(CompressedImage, self.cfg["topic_images"], self.callback, 1000)
+        self.subscriber = self.create_subscription(Image, self.cfg["topic_images"], self.callback, 1000)
         self.bridge = CvBridge()
 
         # params
@@ -64,16 +64,18 @@ class feature_tracker:
         self.cnt_id = 0
         self.feat_obs_cnt = [0] * 10000
 
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         # mode multiple frames
         self.feat_prev_window = []
         self.feat_prev_order_to_id_window = []
 
         # extractor and matcher
-        self.extractor_max_num_keypoints = 512
-        self.extractor = SuperPoint(max_num_keypoints=self.extractor_max_num_keypoints, nms_radius=4).eval().cuda()  # load the extractor
-        self.matcher = LightGlue(features='superpoint').eval().cuda()  # load the matcher
+        self.extractor_max_num_keypoints = 400
+        self.extractor = SuperPoint(max_num_keypoints=self.extractor_max_num_keypoints, nms_radius=4).eval().to(self.device)  # load the extractor
+        self.matcher = LightGlue(features='superpoint').eval().to(self.device)  # load the matcher
 
-        self.target_n_features = 500
+        self.target_n_features = 100
         self.img_h = -1
         self.img_w = -1
 
@@ -81,7 +83,7 @@ class feature_tracker:
         self.file_log = open("./log.txt", "a")
 
     def load_camera_config(self, cfg_path):
-        self.node.get_logger().info("[feature_tracker] loading config from %s" % cfg_path)
+        self.get_logger().info("[feature_tracker] loading config from %s" % cfg_path)
 
         fs = cv2.FileStorage(cfg_path, cv2.FILE_STORAGE_READ)
         k1 = fs.getNode("distortion_parameters").getNode("k1").real()
@@ -123,12 +125,12 @@ class feature_tracker:
         return torch.tensor(image / 255., dtype=torch.float)
 
     def filter_keypoints_score(self, features):
-        self.node.get_logger().info("[feature_tracker] filtering keypoints...")
+        self.get_logger().info("[feature_tracker] filtering keypoints...")
         features_out = {
             'keypoints': None,
             'keypoint_scores': None,
             'descriptors': None,
-            'image_size': torch.clone(features['image_size']).detach().cuda(),
+            'image_size': torch.clone(features['image_size']).detach().to(self.device),
         }
         for _iv in [
             ("keypoints", features['keypoints'][0]), 
@@ -146,7 +148,7 @@ class feature_tracker:
             _vector_out = torch.from_numpy(np.array(_vector_out))
             _vector = _vector_out
             
-            features_out[_i] = torch.unsqueeze(_vector_out, 0).cuda()
+            features_out[_i] = torch.unsqueeze(_vector_out, 0).to(self.device)
         print("begin size: %d" % self.get_length(features))
         print("final size: %d" % self.get_length(features_out))
         return features_out
@@ -184,7 +186,7 @@ class feature_tracker:
             'keypoints': None,
             'keypoint_scores': None,
             'descriptors': None,
-            'image_size': torch.clone(features['image_size']).detach().cuda(),
+            'image_size': torch.clone(features['image_size']).detach().to(self.device),
         }
         for _iv in [
             ("keypoints", features['keypoints'][0]), 
@@ -201,7 +203,7 @@ class feature_tracker:
             _vector_out = torch.from_numpy(np.array(_vector_out))
             _vector = _vector_out
             
-            features_out[_i] = torch.unsqueeze(_vector_out, 0).cuda()
+            features_out[_i] = torch.unsqueeze(_vector_out, 0).to(self.device)
         return features_out
     
     def filter_matches_voxelgrid(self, matches, scores, points_curr_detected):
@@ -294,8 +296,9 @@ class feature_tracker:
         # Populate custom channels
         for i_p, pt in enumerate(kpts_undistorted):
             point = Point32()
-            point.x, point.y = pt
-            point.z = 1
+            point.x = float(pt[0])  # Ensure x is a float
+            point.y = float(pt[1])  # Ensure y is a float
+            point.z = float(1)      # Ensure z is a float
             pc_msg.points.append(point)
             id_of_point.values.append(kpts_ids[i_p])
             u_of_point.values.append(kpts[i_p, 0])
@@ -311,6 +314,8 @@ class feature_tracker:
         pc_msg.channels.append(velocity_y_of_point)
         pc_msg.channels.append(score_of_point)
 
+        
+        self.get_logger().info(f"[feature_tracker] received image message: {pc_msg}")
         # Create a ROS publisher for the PointCloud message
         self.pub_features.publish(pc_msg)
             
@@ -323,6 +328,7 @@ class feature_tracker:
     
     def callback(self, ros_data):
         self.skip_n_curr += 1
+        # self.get_logger().info("[feature_tracker] image received")
         if (self.skip_n_curr-1) % self.skip_n != 0:
             print("[feature_tracker]: skip")
             return True
@@ -333,7 +339,7 @@ class feature_tracker:
         # Record the start time
         time_s = time.time()
 
-        # self.node.get_logger().info("[feature_tracker] received image message")
+        # self.get_logger().info("[feature_tracker] received image message")
         try:
             if self.use_compressed_input:
                 cv_image = self.bridge.compressed_imgmsg_to_cv2(ros_data)
@@ -344,7 +350,7 @@ class feature_tracker:
                     clahe = cv2.createCLAHE()
                     cv_image = clahe.apply(cv_image)
         except CvBridgeError:
-            self.node.get_logger().info("[feature_tracker] error in reading image")
+            self.get_logger().info("[feature_tracker] error in reading image")
             return True
 
         time_bridge = time.time()
@@ -355,12 +361,12 @@ class feature_tracker:
             self.img_w = cv_image.shape[1]
 
         # for all images: extract points
-        self.img_curr = self.np_image_to_torch(cv_image).cuda()
+        self.img_curr = self.np_image_to_torch(cv_image).to(self.device)
         self.feat_curr = self.extractor.extract(self.img_curr)
         if False: #  self.MODE_FILTER_KEYPOINTS:
-            self.node.get_logger().info("[feature_tracker] filtering keypoints")
+            self.get_logger().info("[feature_tracker] filtering keypoints")
             self.feat_curr = self.filter_keypoints_voxelgrid(self.feat_curr)
-            self.node.get_logger().info("[feature_tracker] filtered keypoints")
+            self.get_logger().info("[feature_tracker] filtered keypoints")
 
         time_extract = time.time()
 
@@ -403,9 +409,9 @@ class feature_tracker:
             # matches = self.filter_matches(matches, scores, 0.9, points_prev, points_curr)
             time_filter = time.time()
             if self.MODE_FILTER_MATCHES:
-                self.node.get_logger().info("[feature_tracker] filtering matches")
+                self.get_logger().info("[feature_tracker] filtering matches")
                 matches = self.filter_matches_voxelgrid(matches, scores, points_curr)
-                self.node.get_logger().info("[feature_tracker] filtered matches")
+                self.get_logger().info("[feature_tracker] filtered matches")
 
             # sort matches 
             matches = self.sort_matches(matches, scores)
@@ -568,13 +574,12 @@ class feature_tracker:
             self.feat_prev_order_to_id_window.pop(0) 
 
 
-def main(args):
-    ic = feature_tracker()
-    rclpy.init_node('feature_tracker', anonymous=True)
-    try:
-        rclpy.spin()
-    except KeyboardInterrupt:
-        print("shutting down feature tracker node")
+def main(args=None):
+    rclpy.init(args=args)
+    feature_tracker = FeatureTracker()  # Assurez-vous que le nom de la classe est correct
+    rclpy.spin(feature_tracker)
+    feature_tracker.destroy_node()
+    rclpy.shutdown()
 
 if __name__ == '__main__':
     main(sys.argv)

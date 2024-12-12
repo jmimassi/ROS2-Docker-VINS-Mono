@@ -105,4 +105,6 @@ RUN apt-get update && apt-get install -y \
     python3-tk tk-dev libtcl8.6 libtk8.6 \
     && rm -rf /var/lib/apt/lists/*
 
+RUN pip install scipy
+
 WORKDIR /workspaces/ROS2-DOCKER-VINS-MONO
