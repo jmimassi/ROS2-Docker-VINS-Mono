@@ -65,17 +65,19 @@ class FeatureTracker(Node):
         self.feat_obs_cnt = [0] * 10000
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.get_logger().info("the device connected is %s" % self.device)
+
 
         # mode multiple frames
         self.feat_prev_window = []
         self.feat_prev_order_to_id_window = []
 
         # extractor and matcher
-        self.extractor_max_num_keypoints = 400
+        self.extractor_max_num_keypoints = 1000
         self.extractor = SuperPoint(max_num_keypoints=self.extractor_max_num_keypoints, nms_radius=4).eval().to(self.device)  # load the extractor
         self.matcher = LightGlue(features='superpoint').eval().to(self.device)  # load the matcher
 
-        self.target_n_features = 100
+        self.target_n_features = 450
         self.img_h = -1
         self.img_w = -1
 
@@ -315,7 +317,6 @@ class FeatureTracker(Node):
         pc_msg.channels.append(score_of_point)
 
         
-        self.get_logger().info(f"[feature_tracker] received image message: {pc_msg}")
         # Create a ROS publisher for the PointCloud message
         self.pub_features.publish(pc_msg)
             
