@@ -73,11 +73,11 @@ class FeatureTracker(Node):
         self.feat_prev_order_to_id_window = []
 
         # extractor and matcher
-        self.extractor_max_num_keypoints = 1000
+        self.extractor_max_num_keypoints = 700
         self.extractor = SuperPoint(max_num_keypoints=self.extractor_max_num_keypoints, nms_radius=4).eval().to(self.device)  # load the extractor
         self.matcher = LightGlue(features='superpoint').eval().to(self.device)  # load the matcher
 
-        self.target_n_features = 450
+        self.target_n_features = 700
         self.img_h = -1
         self.img_w = -1
 
@@ -577,10 +577,10 @@ class FeatureTracker(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    feature_tracker = FeatureTracker()  # Assurez-vous que le nom de la classe est correct
+    feature_tracker = FeatureTracker()
     rclpy.spin(feature_tracker)
     feature_tracker.destroy_node()
     rclpy.shutdown()
 
-if __name__ == '__main__':
-    main(sys.argv)
+# if __name__ == '__main__':
+#     main(sys.argv)
